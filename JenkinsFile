@@ -33,7 +33,12 @@ pipeline {
                             reuseNode true
                         }
                     }
-
+                    steps {
+                        sh '''
+                        docker pull node:18-alpine
+                        npm test
+                        '''
+                    }
                     steps {
                         sh '''
                             #test -f build/index.html
