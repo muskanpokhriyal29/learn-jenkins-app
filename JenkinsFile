@@ -86,8 +86,7 @@ pipeline {
             }
             steps {
                 sh '''
-                    apt-get update
-                    apt-get install -y python3 make g++
+                    apk add --no-cache python3 make g++
                     npm config set python /usr/bin/python3
                     rm -rf node_modules package-lock.json
 
