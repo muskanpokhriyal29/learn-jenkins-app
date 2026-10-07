@@ -86,6 +86,11 @@ pipeline {
             }
             steps {
                 sh '''
+                    apt-get update
+                    apt-get install -y python3 make g++
+                    npm config set python /usr/bin/python3
+                    rm -rf node_modules package-lock.json
+
                     npm install netlify-cli@20.1.1
                     npx netlify --version
                     echo "Deploying to production. Site ID: $NETFLIX_SITE_ID"
