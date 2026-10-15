@@ -2,12 +2,12 @@ pipeline {
     agent any
 
     environment {
-        NETFLIX_SITE_ID = "178fdaac-e01d-47e7-b282-c8026e255a7e"
-        NETFLIX_AUTH_TOKEN = credentials('netlify-token')
+        NETLIFY_SITE_ID = 'YOUR NETLIFY SITE ID'
+        NETLIFY_AUTH_TOKEN = credentials('netlify-token')
     }
 
     stages {
-        // this is a comment
+
         stage('Build') {
             agent {
                 docker {
@@ -23,11 +23,9 @@ pipeline {
                     npm ci
                     npm run build
                     ls -la
-                    
                 '''
             }
         }
-        
 
         stage('Tests') {
             parallel {
@@ -38,10 +36,11 @@ pipeline {
                             reuseNode true
                         }
                     }
+
                     steps {
                         sh '''
                             #test -f build/index.html
-                            npm test -- --reporters=default --reporters=jest-junit
+                            npm test
                         '''
                     }
                     post {
@@ -54,7 +53,7 @@ pipeline {
                 stage('E2E') {
                     agent {
                         docker {
-                            image 'mcr.microsoft.com/playwright:v1.61.1-jammy'
+                            image 'mcr.microsoft.com/playwright:v1.39.0-jammy'
                             reuseNode true
                         }
                     }
@@ -70,34 +69,82 @@ pipeline {
 
                     post {
                         always {
-                            publishHTML([allowMissing: false, alwaysLinkToLastBuild: false, keepAll: false, reportDir: 'playwright-report', reportFiles: 'index.html', reportName: 'Playwright HTML Report', reportTitles: '', useWrapperFileDirectly: true])
+                            publishHTML([allowMissing: false, alwaysLinkToLastBuild: false, keepAll: false, reportDir: 'playwright-report', reportFiles: 'index.html', reportName: 'Local E2E', reportTitles: '', useWrapperFileDirectly: true])
                         }
                     }
                 }
             }
         }
 
-        stage('Deploy') {
+        stage('Deploy staging') {
             agent {
                 docker {
-                    image 'node:18-alpine'
+                    image 'mcr.microsoft.com/playwright:v1.39.0-jammy'
                     reuseNode true
                 }
             }
+
+            environment {
+                CI_ENVIRONMENT_URL = 'STAGING_URL_TO_BE_SET'
+            }
+
             steps {
                 sh '''
-                    apk add --no-cache python3 make g++
-                    npm config set python /usr/bin/python3
-                    rm -rf node_modules package-lock.json
+                    npm install netlify-cli node-jq
+                    node_modules/.bin/netlify --version
+                    echo "Deploying to staging. Site ID: $NETLIFY_SITE_ID"
+                    node_modules/.bin/netlify status
+                    node_modules/.bin/netlify deploy --dir=build --json > deploy-output.json
+                    CI_ENVIRONMENT_URL=$(node_modules/.bin/node-jq -r '.deploy_url' deploy-output.json)
+                    npx playwright test  --reporter=html
+                '''
+            }
 
-                    npm install netlify-cli@20.1.1
-                    npx netlify --version
-                    echo "Deploying to production. Site ID: $NETFLIX_SITE_ID"
+            post {
+                always {
+                    publishHTML([allowMissing: false, alwaysLinkToLastBuild: false, keepAll: false, reportDir: 'playwright-report', reportFiles: 'index.html', reportName: 'Staging E2E', reportTitles: '', useWrapperFileDirectly: true])
+                }
+            }
+        }
+
+        stage('Approval') {
+            steps {
+                timeout(time: 15, unit: 'MINUTES') {
+                    input message: 'Do you wish to deploy to production?', ok: 'Yes, I am sure!'
+                }
+            }
+        }
+
+        stage('Deploy prod') {
+            agent {
+                docker {
+                    image 'mcr.microsoft.com/playwright:v1.39.0-jammy'
+                    reuseNode true
+                }
+            }
+
+            environment {
+                CI_ENVIRONMENT_URL = 'YOUR NETLIFY URL'
+            }
+
+            steps {
+                sh '''
+                    node --version
+                    npm install netlify-cli
+                    node_modules/.bin/netlify --version
+                    echo "Deploying to production. Site ID: $NETLIFY_SITE_ID"
                     node_modules/.bin/netlify status
                     node_modules/.bin/netlify deploy --dir=build --prod
+                    npx playwright test  --reporter=html
                 '''
-            //comment here
+            }
+
+            post {
+                always {
+                    publishHTML([allowMissing: false, alwaysLinkToLastBuild: false, keepAll: false, reportDir: 'playwright-report', reportFiles: 'index.html', reportName: 'Prod E2E', reportTitles: '', useWrapperFileDirectly: true])
+                }
             }
         }
     }
 }
+
