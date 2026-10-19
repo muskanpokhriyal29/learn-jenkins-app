@@ -18,12 +18,11 @@ pipeline {
             }
             steps {
                 sh '''
-                    ls -la
+                    docker pull node:18-alpine
                     node --version
                     npm --version
                     npm ci
                     npm run build
-                    ls -la
                 '''
             }
         }
@@ -37,11 +36,10 @@ pipeline {
                             reuseNode true
                         }
                     }
-
                     steps {
                         sh '''
-                            #test -f build/index.html
-                            npm test
+                            docker pull node:18-alpine
+                            npm test -- --reporters=default --reporters=jest-junit
                         '''
                     }
                     post {
@@ -58,19 +56,17 @@ pipeline {
                             reuseNode true
                         }
                     }
-
                     steps {
                         sh '''
                             npm install serve
-                            node_modules/.bin/serve -s build &
+                            npx serve -s build &
                             sleep 10
-                            npx playwright test  --reporter=html
+                            npx playwright test --reporter=html
                         '''
                     }
-
                     post {
                         always {
-                            publishHTML([allowMissing: false, alwaysLinkToLastBuild: false, keepAll: false, reportDir: 'playwright-report', reportFiles: 'index.html', reportName: 'Local E2E', reportTitles: '', useWrapperFileDirectly: true])
+                            publishHTML([allowMissing: false, alwaysLinkToLastBuild: false, keepAll: false, reportDir: 'playwright-report', reportFiles: 'index.html', reportName: 'Local E2E', useWrapperFileDirectly: true])
                         }
                     }
                 }
@@ -84,26 +80,23 @@ pipeline {
                     reuseNode true
                 }
             }
-
             environment {
                 CI_ENVIRONMENT_URL = 'STAGING_URL_TO_BE_SET'
             }
-
             steps {
                 sh '''
                     npm install netlify-cli node-jq
-                    node_modules/.bin/netlify --version
+                    npx netlify --version
                     echo "Deploying to staging. Site ID: $NETLIFY_SITE_ID"
-                    node_modules/.bin/netlify status
-                    node_modules/.bin/netlify deploy --dir=build --json > deploy-output.json
-                    CI_ENVIRONMENT_URL=$(node_modules/.bin/node-jq -r '.deploy_url' deploy-output.json)
-                    npx playwright test  --reporter=html
+                    npx netlify status
+                    npx netlify deploy --dir=build --json > deploy-output.json
+                    export CI_ENVIRONMENT_URL=$(npx node-jq -r '.deploy_url' deploy-output.json)
+                    npx playwright test --reporter=html
                 '''
             }
-
             post {
                 always {
-                    publishHTML([allowMissing: false, alwaysLinkToLastBuild: false, keepAll: false, reportDir: 'playwright-report', reportFiles: 'index.html', reportName: 'Staging E2E', reportTitles: '', useWrapperFileDirectly: true])
+                    publishHTML([allowMissing: false, alwaysLinkToLastBuild: false, keepAll: false, reportDir: 'playwright-report', reportFiles: 'index.html', reportName: 'Staging E2E', useWrapperFileDirectly: true])
                 }
             }
         }
@@ -115,26 +108,23 @@ pipeline {
                     reuseNode true
                 }
             }
-
             environment {
                 CI_ENVIRONMENT_URL = 'YOUR NETLIFY SITE URL'
             }
-
             steps {
                 sh '''
                     node --version
                     npm install netlify-cli
-                    node_modules/.bin/netlify --version
+                    npx netlify --version
                     echo "Deploying to production. Site ID: $NETLIFY_SITE_ID"
-                    node_modules/.bin/netlify status
-                    node_modules/.bin/netlify deploy --dir=build --prod
-                    npx playwright test  --reporter=html
+                    npx netlify status
+                    npx netlify deploy --dir=build --prod
+                    npx playwright test --reporter=html
                 '''
             }
-
             post {
                 always {
-                    publishHTML([allowMissing: false, alwaysLinkToLastBuild: false, keepAll: false, reportDir: 'playwright-report', reportFiles: 'index.html', reportName: 'Prod E2E', reportTitles: '', useWrapperFileDirectly: true])
+                    publishHTML([allowMissing: false, alwaysLinkToLastBuild: false, keepAll: false, reportDir: 'playwright-report', reportFiles: 'index.html', reportName: 'Prod E2E', useWrapperFileDirectly: true])
                 }
             }
         }
